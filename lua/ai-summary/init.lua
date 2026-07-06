@@ -12,19 +12,134 @@ local function notify(message, level)
   vim.notify(message, level or vim.log.levels.INFO, { title = "ai-summary.nvim" })
 end
 
+local function notify_config(message, level)
+  notify(message, level)
+end
+
 local function command_to_string(cmd)
   return table.concat(vim.tbl_map(tostring, cmd), " ")
 end
 
-local function resolve_provider(opts)
-  local provider_name = opts.provider or "codex"
-  local provider = opts.providers and opts.providers[provider_name]
+local function starts_with(value, prefix)
+  return value:sub(1, #prefix) == prefix
+end
 
-  if not provider or type(provider.cmd) ~= "table" or #provider.cmd == 0 then
-    return nil, provider_name
+local function filter_completion(values, prefix)
+  local matches = {}
+
+  for _, value in ipairs(values) do
+    if starts_with(value, prefix or "") then
+      table.insert(matches, value)
+    end
   end
 
-  return provider, provider_name
+  return matches
+end
+
+local function config_usage()
+  return table.concat({
+    "Usage:",
+    "  :AISummaryConfig show",
+    "  :AISummaryConfig model gpt-5.5",
+    "  :AISummaryConfig effort low",
+    "  :AISummaryConfig effort medium",
+    "",
+    "Allowed effort values: " .. config.reasoning_effort_list(),
+  }, "\n")
+end
+
+local function notify_config_usage(message)
+  notify_config(message .. "\n\n" .. config_usage(), vim.log.levels.WARN)
+end
+
+local function active_provider()
+  return config.options.provider or "codex"
+end
+
+local function show_config()
+  local provider_name = active_provider()
+  local provider = config.options.providers and config.options.providers[provider_name]
+
+  if provider_name ~= "codex" then
+    notify_config(
+      ("Active provider: %s\nModel and reasoning effort options currently apply to Codex only."):format(provider_name)
+    )
+    return
+  end
+
+  provider = provider or {}
+
+  local lines = {
+    "Active provider: codex",
+    "Model: " .. tostring(provider.model or config.defaults.providers.codex.model),
+    "Reasoning effort: " .. tostring(provider.reasoning_effort or config.defaults.providers.codex.reasoning_effort),
+  }
+
+  if type(provider.cmd) == "table" and #provider.cmd > 0 then
+    table.insert(lines, "Custom cmd is configured; model and reasoning effort are not applied automatically.")
+  end
+
+  notify_config(table.concat(lines, "\n"))
+end
+
+local function set_model(model)
+  if not model or model == "" then
+    notify_config_usage("Missing model value.")
+    return
+  end
+
+  config.set_codex_model(model)
+  notify_config(("Codex model set to %s for this Neovim session."):format(model))
+end
+
+local function set_effort(effort)
+  if not effort or effort == "" then
+    notify_config_usage("Missing reasoning effort value.")
+    return
+  end
+
+  if not config.set_codex_reasoning_effort(effort) then
+    notify_config_usage(("Invalid reasoning effort: %s"):format(effort))
+    return
+  end
+
+  notify_config(("Codex reasoning effort set to %s for this Neovim session."):format(effort))
+end
+
+local function handle_config_command(command)
+  local subcommand = command.fargs[1] or "show"
+
+  if subcommand == "show" then
+    show_config()
+    return
+  end
+
+  if subcommand == "model" then
+    set_model(command.fargs[2])
+    return
+  end
+
+  if subcommand == "effort" then
+    set_effort(command.fargs[2])
+    return
+  end
+
+  notify_config_usage(("Unknown AISummaryConfig command: %s"):format(subcommand))
+end
+
+local function complete_config(arg_lead, cmd_line)
+  local parts = vim.split(cmd_line, "%s+", { trimempty = true })
+  local subcommand = parts[2]
+
+  if #parts <= 1 or (#parts == 2 and not cmd_line:match("%s$")) then
+    return filter_completion({ "show", "model", "effort" }, arg_lead)
+  end
+
+  if subcommand == "effort" then
+    return filter_completion(config.reasoning_effort_values, arg_lead)
+  end
+
+  return {}
 end
 
 function M.summarize_range(line1, line2)
@@ -41,7 +156,7 @@ function M.summarize_range(line1, line2)
   end
 
   local opts = config.options
-  local provider, provider_name = resolve_provider(opts)
+  local provider, provider_name = config.resolve_provider(opts)
 
   if not provider then
     notify(("Provider '%s' is not configured"):format(provider_name), vim.log.levels.ERROR)
@@ -137,6 +252,12 @@ function M.setup(options)
     complete = function()
       return { "last" }
     end,
+  })
+
+  vim.api.nvim_create_user_command("AISummaryConfig", handle_config_command, {
+    nargs = "*",
+    range = true,
+    complete = complete_config,
   })
 end
 
