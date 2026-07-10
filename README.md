@@ -18,7 +18,7 @@ return {
       provider = "codex",
       providers = {
         codex = {
-          model = "gpt-5.5",
+          model = "gpt-5.6-terra",
           reasoning_effort = "low",
         },
       },
@@ -89,7 +89,7 @@ Show the active provider settings:
 Change the Codex model or reasoning effort for the current Neovim session:
 
 ```vim
-:AISummaryConfig model gpt-5.5
+:AISummaryConfig model gpt-5.6-terra
 :AISummaryConfig effort low
 :AISummaryConfig effort medium
 ```
@@ -116,7 +116,7 @@ require("ai-summary").setup({
   provider = "codex",
   providers = {
     codex = {
-      model = "gpt-5.5",
+      model = "gpt-5.6-terra",
       reasoning_effort = "low",
     },
   },
@@ -133,7 +133,7 @@ For the built-in Codex provider, `model` and `reasoning_effort` are passed as
 per-run `codex exec` arguments. The default command is equivalent to:
 
 ```bash
-codex exec -m gpt-5.5 -c 'model_reasoning_effort="low"' -
+codex exec -m gpt-5.6-terra -c 'model_reasoning_effort="low"' -
 ```
 
 This does not modify your global Codex CLI settings.

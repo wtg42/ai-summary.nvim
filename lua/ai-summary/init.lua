@@ -40,7 +40,7 @@ local function config_usage()
   return table.concat({
     "Usage:",
     "  :AISummaryConfig show",
-    "  :AISummaryConfig model gpt-5.5",
+    "  :AISummaryConfig model gpt-5.6-terra",
     "  :AISummaryConfig effort low",
     "  :AISummaryConfig effort medium",
     "",
