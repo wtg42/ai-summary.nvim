@@ -62,7 +62,9 @@ local function show_config()
 
   if provider_name ~= "codex" then
     notify_config(
-      ("Active provider: %s\nModel and reasoning effort options currently apply to Codex only."):format(provider_name)
+      ("Active provider: %s\nModel and reasoning effort options currently apply to Codex only."):format(
+        provider_name
+      )
     )
     return
   end
@@ -72,11 +74,15 @@ local function show_config()
   local lines = {
     "Active provider: codex",
     "Model: " .. tostring(provider.model or config.defaults.providers.codex.model),
-    "Reasoning effort: " .. tostring(provider.reasoning_effort or config.defaults.providers.codex.reasoning_effort),
+    "Reasoning effort: "
+      .. tostring(provider.reasoning_effort or config.defaults.providers.codex.reasoning_effort),
   }
 
   if type(provider.cmd) == "table" and #provider.cmd > 0 then
-    table.insert(lines, "Custom cmd is configured; model and reasoning effort are not applied automatically.")
+    table.insert(
+      lines,
+      "Custom cmd is configured; model and reasoning effort are not applied automatically."
+    )
   end
 
   notify_config(table.concat(lines, "\n"))
@@ -155,63 +161,79 @@ function M.summarize_range(line1, line2)
     return
   end
 
-  local opts = config.options
-  local provider, provider_name = config.resolve_provider(opts)
+  vim.ui.input({ prompt = "AI task (empty = summarize): " }, function(input)
+    if input == nil then
+      return
+    end
 
-  if not provider then
-    notify(("Provider '%s' is not configured"):format(provider_name), vim.log.levels.ERROR)
-    return
-  end
+    local task = vim.trim(input)
 
-  local summary_context = context.build(0, line1, line2)
-  summary_context.language = opts.language
-  local prompt = opts.prompt(code, summary_context)
-  local output = ui.open(opts.window)
-  local stdout_chunks = {}
-  local stderr_chunks = {}
+    if task == "" then
+      task = nil
+    end
 
-  output:append("Running AI summary...\n\n")
+    vim.schedule(function()
+      local opts = config.options
+      local provider, provider_name = config.resolve_provider(opts)
 
-  runner.stream({
-    cmd = provider.cmd,
-    cwd = summary_context.root or summary_context.cwd,
-    stdin = prompt,
-    timeout_ms = opts.timeout_ms,
-    on_stdout = function(chunk)
-      table.insert(stdout_chunks, chunk)
-      output:append(chunk)
-    end,
-    on_stderr = function(chunk)
-      table.insert(stderr_chunks, chunk)
-    end,
-    on_start_error = function()
-      output:append(("Failed to start provider command: %s"):format(command_to_string(provider.cmd)))
-    end,
-    on_timeout = function(timeout_ms)
-      output:append(("\n\nTimed out after %ds"):format(math.floor(timeout_ms / 1000)))
-    end,
-    on_exit = function(code, timed_out)
-      if timed_out then
+      if not provider then
+        notify(("Provider '%s' is not configured"):format(provider_name), vim.log.levels.ERROR)
         return
       end
 
-      local stdout = table.concat(stdout_chunks)
+      local summary_context = context.build(0, line1, line2)
+      summary_context.language = opts.language
+      local prompt = opts.prompt(code, summary_context, task)
+      local output = ui.open(opts.window)
+      local stdout_chunks = {}
+      local stderr_chunks = {}
 
-      if code == 0 and stdout:match("%S") then
-        last_summary = stdout
-      end
+      output:append("Running AI summary...\n\n")
 
-      if code ~= 0 then
-        local stderr = table.concat(stderr_chunks)
+      runner.stream({
+        cmd = provider.cmd,
+        cwd = summary_context.root or summary_context.cwd,
+        stdin = prompt,
+        timeout_ms = opts.timeout_ms,
+        on_stdout = function(chunk)
+          table.insert(stdout_chunks, chunk)
+          output:append(chunk)
+        end,
+        on_stderr = function(chunk)
+          table.insert(stderr_chunks, chunk)
+        end,
+        on_start_error = function()
+          output:append(
+            ("Failed to start provider command: %s"):format(command_to_string(provider.cmd))
+          )
+        end,
+        on_timeout = function(timeout_ms)
+          output:append(("\n\nTimed out after %ds"):format(math.floor(timeout_ms / 1000)))
+        end,
+        on_exit = function(code, timed_out)
+          if timed_out then
+            return
+          end
 
-        if stderr:match("%S") then
-          output:append(("\n\nProvider error output:\n\n%s"):format(stderr))
-        end
+          local stdout = table.concat(stdout_chunks)
 
-        output:append(("\n\nProcess exited with code %d"):format(code))
-      end
-    end,
-  })
+          if code == 0 and stdout:match("%S") then
+            last_summary = stdout
+          end
+
+          if code ~= 0 then
+            local stderr = table.concat(stderr_chunks)
+
+            if stderr:match("%S") then
+              output:append(("\n\nProvider error output:\n\n%s"):format(stderr))
+            end
+
+            output:append(("\n\nProcess exited with code %d"):format(code))
+          end
+        end,
+      })
+    end)
+  end)
 end
 
 function M.show_last_summary()

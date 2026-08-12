@@ -55,9 +55,22 @@ Select code in Visual mode, then run:
 :AISummary
 ```
 
-The selected code is sent to the configured provider with file, range, language,
-project-root, and lightweight project hints. Output streams into a floating
-Markdown window. Press `q` in the summary window to close it.
+The command opens a single-line task prompt:
+
+```text
+AI task (empty = summarize):
+```
+
+Press Enter without entering a task to use the default summary behavior, or
+enter a focused task such as `Find possible race conditions`. Surrounding
+whitespace is ignored. Press Esc to cancel without opening the output window or
+starting the AI provider.
+
+The selected code is sent to the configured provider with the task, file,
+range, language, project-root, and lightweight project hints. Custom tasks are
+read-only: the provider can analyze the code and suggest changes in its answer,
+but the plugin does not allow it to modify repository files. Output streams
+into a floating Markdown window. Press `q` in the output window to close it.
 
 For Codex CLI, progress and transcript output on stderr is hidden on successful
 runs; stderr is shown only when the provider exits with an error.
@@ -128,6 +141,25 @@ require("ai-summary").setup({
   },
 })
 ```
+
+The optional `prompt` callback receives selected code, repository context, and
+the normalized per-request task:
+
+```lua
+require("ai-summary").setup({
+  prompt = function(code, context, task)
+    if task then
+      return task .. "\n\n" .. code
+    end
+
+    return "Summarize this code:\n\n" .. code
+  end,
+})
+```
+
+`task` is `nil` when the task input is empty. Existing callbacks that accept
+only `code` and `context` remain compatible because Lua ignores extra function
+arguments.
 
 For the built-in Codex provider, `model` and `reasoning_effort` are passed as
 per-run `codex exec` arguments. The default command is equivalent to:

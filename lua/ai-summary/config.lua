@@ -18,7 +18,7 @@ local function format_project_hints(hints)
   return table.concat(hints, ", ")
 end
 
-local function default_prompt(code, context)
+local function default_summary_prompt(code, context)
   local language = context.language or "zh-TW"
 
   return table.concat({
@@ -32,7 +32,9 @@ local function default_prompt(code, context)
     "Absolute file path: " .. (context.filename or "unknown"),
     "Filetype/language: " .. (context.filetype or "unknown"),
     "File extension: " .. (context.extension or "unknown"),
-    "Selection range: lines " .. tostring(context.line1 or "unknown") .. "-" .. tostring(context.line2 or "unknown"),
+    "Selection range: lines " .. tostring(context.line1 or "unknown") .. "-" .. tostring(
+      context.line2 or "unknown"
+    ),
     "Project hints: " .. format_project_hints(context.project_hints),
     "",
     "Instructions:",
@@ -56,6 +58,53 @@ local function default_prompt(code, context)
     "--- Selected Code ---",
     code,
   }, "\n")
+end
+
+local function custom_task_prompt(code, context, task)
+  local language = context.language or "zh-TW"
+
+  return table.concat({
+    "You are performing a read-only task on selected code from a repository.",
+    "Answer language: " .. language .. ".",
+    "Use Traditional Chinese when the answer language is zh-TW.",
+    "",
+    "Repository root: " .. (context.root or "unknown"),
+    "Working directory: " .. (context.cwd or "unknown"),
+    "File: " .. (context.relative_path or context.filename or "unknown"),
+    "Absolute file path: " .. (context.filename or "unknown"),
+    "Filetype/language: " .. (context.filetype or "unknown"),
+    "File extension: " .. (context.extension or "unknown"),
+    "Selection range: lines " .. tostring(context.line1 or "unknown") .. "-" .. tostring(
+      context.line2 or "unknown"
+    ),
+    "Project hints: " .. format_project_hints(context.project_hints),
+    "",
+    "User task:",
+    task,
+    "",
+    "Instructions:",
+    "- Perform the user task with priority on the selected code.",
+    "- Inspect external references in the repository only when needed to complete the task.",
+    "- Treat metadata as hints. If metadata conflicts with the selected code or repository files, trust the code and repository evidence.",
+    "- Do not modify files. Do not run write operations. Respond with analysis or suggested code only.",
+    "- Keep the answer focused and concise.",
+    "- Do not include an English translation.",
+    "- Do not include token usage, diagnostics, CLI metadata, or process metadata.",
+    "- Return only Markdown in a structure appropriate for the user task.",
+    "",
+    "--- Selected Code ---",
+    code,
+  }, "\n")
+end
+
+local function default_prompt(code, context, task)
+  local normalized_task = vim.trim(task or "")
+
+  if normalized_task == "" then
+    return default_summary_prompt(code, context)
+  end
+
+  return custom_task_prompt(code, context, normalized_task)
 end
 
 M.defaults = {
@@ -141,7 +190,8 @@ function M.resolve_provider(opts)
   if provider_name == "codex" then
     return vim.tbl_extend("force", provider, {
       cmd = build_codex_cmd(provider),
-    }), provider_name
+    }),
+      provider_name
   end
 
   return nil, provider_name
