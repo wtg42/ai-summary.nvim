@@ -79,6 +79,76 @@ h.test("custom task prompt is normalized, contextual, and read-only", function()
   h.not_contains(prompt, "## Summary")
 end)
 
+h.test("Codex provider uses the default executable", function()
+  package.loaded["ai-summary.config"] = nil
+  local config = require("ai-summary.config")
+  config.setup()
+
+  local provider = config.resolve_provider()
+
+  h.eq("codex", provider.cmd[1])
+  h.eq(
+    { "exec", "-m", "gpt-5.6-terra", "-c", 'model_reasoning_effort="low"', "-" },
+    vim.list_slice(provider.cmd, 2)
+  )
+end)
+
+h.test("Codex executable preserves generated model and effort arguments", function()
+  package.loaded["ai-summary.config"] = nil
+  local config = require("ai-summary.config")
+  config.setup({
+    providers = {
+      codex = {
+        executable = "codex-company",
+        model = "company-model",
+        reasoning_effort = "medium",
+      },
+    },
+  })
+
+  local provider = config.resolve_provider()
+
+  h.eq({
+    "codex-company",
+    "exec",
+    "-m",
+    "company-model",
+    "-c",
+    'model_reasoning_effort="medium"',
+    "-",
+  }, provider.cmd)
+end)
+
+h.test("Codex executable can be changed for the current session", function()
+  package.loaded["ai-summary.config"] = nil
+  local config = require("ai-summary.config")
+  config.setup()
+
+  h.truthy(config.set_codex_executable("  codex-company  "))
+  h.eq(false, config.set_codex_executable("  "))
+
+  local provider = config.resolve_provider()
+  h.eq("codex-company", provider.cmd[1])
+end)
+
+h.test("custom cmd remains an exact override of the Codex executable", function()
+  package.loaded["ai-summary.config"] = nil
+  local config = require("ai-summary.config")
+  local custom_cmd = { "wrapper", "--custom" }
+  config.setup({
+    providers = {
+      codex = {
+        executable = "codex-company",
+        cmd = custom_cmd,
+      },
+    },
+  })
+
+  local provider = config.resolve_provider()
+
+  h.eq(custom_cmd, provider.cmd)
+end)
+
 local function load_command(options)
   local selected_code = options.selection
   local state = {
@@ -96,9 +166,17 @@ local function load_command(options)
 
   package.loaded["ai-summary"] = nil
   package.loaded["ai-summary.init"] = nil
-  package.loaded["ai-summary.config"] = {
+  local config_module = {
     options = vim.tbl_extend("force", {
       language = "zh-TW",
+      provider = "codex",
+      providers = {
+        codex = {
+          executable = "codex",
+          model = "gpt-5.6-terra",
+          reasoning_effort = "low",
+        },
+      },
       prompt = function(code, prompt_context, task)
         state.prompt_args = { code, prompt_context, task }
         return "generated prompt"
@@ -110,8 +188,31 @@ local function load_command(options)
       state.provider_resolutions = state.provider_resolutions + 1
       return { cmd = { "provider" } }, "test"
     end,
+    defaults = {
+      providers = {
+        codex = {
+          executable = "codex",
+          model = "gpt-5.6-terra",
+          reasoning_effort = "low",
+        },
+      },
+    },
+    reasoning_effort_values = { "minimal", "low", "medium", "high", "xhigh" },
+    reasoning_effort_list = function()
+      return "minimal, low, medium, high, xhigh"
+    end,
     setup = function() end,
   }
+  config_module.set_codex_executable = function(executable)
+    if not executable or vim.trim(executable) == "" then
+      return false
+    end
+
+    config_module.options.providers.codex.executable = vim.trim(executable)
+    return true
+  end
+  package.loaded["ai-summary.config"] = config_module
+  state.config = config_module
   package.loaded["ai-summary.context"] = {
     build = function(_, line1, line2)
       state.context_builds = state.context_builds + 1
@@ -284,6 +385,25 @@ h.test("range command covers task input paths without adding a keymap", function
   vim.cmd("1,1AISummary")
   h.eq(3, state.inputs)
   h.eq(1, #state.notifications)
+
+  vim.cmd("AISummaryConfig executable codex-company")
+  h.eq("codex-company", state.config.options.providers.codex.executable)
+  h.contains(state.notifications[2].message, "codex-company")
+
+  vim.cmd("AISummaryConfig show")
+  h.contains(state.notifications[3].message, "Executable: codex-company")
+
+  vim.cmd("AISummaryConfig executable")
+  h.eq("codex-company", state.config.options.providers.codex.executable)
+  h.contains(state.notifications[4].message, "Missing executable value")
+
+  state.config.options.providers.codex.cmd = { "custom-wrapper", "exec", "-" }
+  vim.cmd("AISummaryConfig executable ignored-wrapper")
+  h.eq("codex-company", state.config.options.providers.codex.executable)
+  h.contains(state.notifications[5].message, "custom cmd")
+
+  local completions = vim.fn.getcompletion("AISummaryConfig ex", "cmdline")
+  h.truthy(vim.tbl_contains(completions, "executable"))
 
   state.restore()
 end)

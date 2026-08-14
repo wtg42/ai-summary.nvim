@@ -112,6 +112,7 @@ M.defaults = {
   provider = "codex",
   providers = {
     codex = {
+      executable = "codex",
       model = "gpt-5.6-terra",
       reasoning_effort = "low",
     },
@@ -142,7 +143,7 @@ local function build_codex_cmd(provider)
   local effort = provider.reasoning_effort or M.defaults.providers.codex.reasoning_effort
 
   return {
-    "codex",
+    provider.executable or M.defaults.providers.codex.executable,
     "exec",
     "-m",
     model,
@@ -203,6 +204,16 @@ function M.set_codex_model(model)
   end
 
   M.options.providers.codex.model = model
+
+  return true
+end
+
+function M.set_codex_executable(executable)
+  if type(executable) ~= "string" or vim.trim(executable) == "" then
+    return false
+  end
+
+  M.options.providers.codex.executable = vim.trim(executable)
 
   return true
 end

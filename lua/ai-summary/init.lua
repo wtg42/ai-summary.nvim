@@ -40,6 +40,7 @@ local function config_usage()
   return table.concat({
     "Usage:",
     "  :AISummaryConfig show",
+    "  :AISummaryConfig executable codex-company",
     "  :AISummaryConfig model gpt-5.6-terra",
     "  :AISummaryConfig effort low",
     "  :AISummaryConfig effort medium",
@@ -73,19 +74,41 @@ local function show_config()
 
   local lines = {
     "Active provider: codex",
+    "Executable: "
+      .. tostring(provider.executable or config.defaults.providers.codex.executable),
     "Model: " .. tostring(provider.model or config.defaults.providers.codex.model),
     "Reasoning effort: "
       .. tostring(provider.reasoning_effort or config.defaults.providers.codex.reasoning_effort),
   }
 
   if type(provider.cmd) == "table" and #provider.cmd > 0 then
+    lines[2] = "Executable: " .. tostring(provider.cmd[1])
     table.insert(
       lines,
-      "Custom cmd is configured; model and reasoning effort are not applied automatically."
+      "Custom cmd overrides executable, model, and reasoning effort."
     )
   end
 
   notify_config(table.concat(lines, "\n"))
+end
+
+local function set_executable(executable)
+  local provider = config.options.providers and config.options.providers.codex
+
+  if provider and type(provider.cmd) == "table" and #provider.cmd > 0 then
+    notify_config(
+      "Cannot change the Codex executable while a custom cmd is configured.",
+      vim.log.levels.WARN
+    )
+    return
+  end
+
+  if not config.set_codex_executable(executable) then
+    notify_config_usage("Missing executable value.")
+    return
+  end
+
+  notify_config(("Codex executable set to %s for this Neovim session."):format(executable))
 end
 
 local function set_model(model)
@@ -125,6 +148,11 @@ local function handle_config_command(command)
     return
   end
 
+  if subcommand == "executable" then
+    set_executable(command.fargs[2])
+    return
+  end
+
   if subcommand == "effort" then
     set_effort(command.fargs[2])
     return
@@ -138,7 +166,7 @@ local function complete_config(arg_lead, cmd_line)
   local subcommand = parts[2]
 
   if #parts <= 1 or (#parts == 2 and not cmd_line:match("%s$")) then
-    return filter_completion({ "show", "model", "effort" }, arg_lead)
+    return filter_completion({ "show", "executable", "model", "effort" }, arg_lead)
   end
 
   if subcommand == "effort" then

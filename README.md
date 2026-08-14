@@ -18,6 +18,7 @@ return {
       provider = "codex",
       providers = {
         codex = {
+          executable = "codex",
           model = "gpt-5.6-terra",
           reasoning_effort = "low",
         },
@@ -99,9 +100,10 @@ Show the active provider settings:
 :AISummaryConfig show
 ```
 
-Change the Codex model or reasoning effort for the current Neovim session:
+Change the Codex executable, model, or reasoning effort for the current Neovim session:
 
 ```vim
+:AISummaryConfig executable codex-company
 :AISummaryConfig model gpt-5.6-terra
 :AISummaryConfig effort low
 :AISummaryConfig effort medium
@@ -129,6 +131,7 @@ require("ai-summary").setup({
   provider = "codex",
   providers = {
     codex = {
+      executable = "codex",
       model = "gpt-5.6-terra",
       reasoning_effort = "low",
     },
@@ -170,6 +173,25 @@ codex exec -m gpt-5.6-terra -c 'model_reasoning_effort="low"' -
 
 This does not modify your global Codex CLI settings.
 
+Set `providers.codex.executable` to use a Codex-compatible wrapper while keeping
+the generated `exec`, model, and reasoning-effort arguments:
+
+```lua
+require("ai-summary").setup({
+  providers = {
+    codex = {
+      executable = "codex-company",
+    },
+  },
+})
+```
+
+The executable is launched directly without a shell, so it may be a command on
+`PATH` or an absolute path, but it must not contain shell syntax or additional
+arguments. A wrapper must forward arguments and stdin to Codex. It must also
+reserve stdout for the final answer; write diagnostics such as the active
+`CODEX_HOME` to stderr instead, or they will appear in the summary output.
+
 Built-in `model` and `reasoning_effort` mapping currently supports Codex only.
 Other AI CLIs such as Claude Code, Gemini, opencode, or aider are not mapped by
 the plugin yet because each CLI has different flags and execution rules. Use a
@@ -189,4 +211,4 @@ require("ai-summary").setup({
 ```
 
 When `cmd` is configured, ai-summary.nvim runs it exactly as provided and does
-not automatically append model or reasoning-effort arguments.
+not automatically append executable, model, or reasoning-effort arguments.
