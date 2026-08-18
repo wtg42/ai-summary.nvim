@@ -270,6 +270,7 @@ local function load_command(options)
   }
   local input_callback
   local original_input = vim.ui.input
+  local original_select = vim.ui.select
   local original_notify = vim.notify
 
   package.loaded["ai-summary"] = nil
@@ -349,15 +350,9 @@ local function load_command(options)
     open = function()
       table.insert(state.events, "output-open")
       state.output_opens = state.output_opens + 1
-      return {
-        append = function() end,
-        close = function()
-          table.insert(state.events, "output-close")
-        end,
-      }
+      return { append = function() end }
     end,
     open_terminal = function(_, command, cwd)
-      table.insert(state.events, "terminal-open")
       state.terminal_opens = state.terminal_opens + 1
       state.terminal_command = command
       state.terminal_cwd = cwd
@@ -369,6 +364,11 @@ local function load_command(options)
     state.inputs = state.inputs + 1
     state.input_options = input_options
     input_callback = callback
+  end
+  vim.ui.select = function(select_options, select_options_opts, callback)
+    state.select_options = select_options
+    state.select_options_opts = select_options_opts
+    state.select_callback = callback
   end
   vim.notify = function(message, level)
     table.insert(state.notifications, { message = message, level = level })
@@ -390,6 +390,7 @@ local function load_command(options)
 
   function state.restore()
     vim.ui.input = original_input
+    vim.ui.select = original_select
     vim.notify = original_notify
   end
 
@@ -399,8 +400,12 @@ local function load_command(options)
 
   function state.finish(code)
     state.streams[#state.streams].on_exit(code, false)
+  end
+
+  function state.choose(value)
+    state.select_callback(value)
     vim.wait(1000, function()
-      return state.terminal_opens > 0
+      return state.terminal_opens > 0 or value ~= "Open Codex interactive session"
     end)
   end
 
@@ -473,15 +478,20 @@ h.test("custom submission sends normalized task to the prompt callback", functio
   state.restore()
 end)
 
-h.test("successful custom task directly opens Codex interactive handoff", function()
+h.test("successful answer offers Codex interactive handoff", function()
   local module, state = load_command({ selection = "local value = 1" })
   module.summarize_range(3, 3)
   state.submit("Find bugs")
   state.emit_stdout("first answer")
   state.finish(0)
 
+  h.eq({ "Open Codex interactive session", "Keep summary only" }, state.select_options)
+  h.contains(state.select_options_opts.prompt, "interactive")
+  h.eq(0, state.terminal_opens)
+
+  state.choose("Open Codex interactive session")
+
   h.eq(1, state.terminal_opens)
-  h.eq({ "input-cleanup", "output-open", "output-close", "terminal-open" }, state.events)
   h.eq({ "/repo", "interactive prompt" }, state.interactive_command_args)
   h.eq({ "codex", "interactive prompt" }, state.terminal_command)
   h.eq("Find bugs", state.interactive_prompt_args[3])
@@ -489,15 +499,15 @@ h.test("successful custom task directly opens Codex interactive handoff", functi
   state.restore()
 end)
 
-h.test("successful summary directly opens Codex interactive handoff", function()
+h.test("declining interactive handoff leaves the summary flow unchanged", function()
   local module, state = load_command({ selection = "local value = 1" })
   module.summarize_range(3, 3)
   state.submit("")
   state.emit_stdout("first answer")
   state.finish(0)
+  state.choose("Keep summary only")
 
-  h.eq(1, state.terminal_opens)
-  h.eq({ "input-cleanup", "output-open", "output-close", "terminal-open" }, state.events)
+  h.eq(0, state.terminal_opens)
   h.eq(nil, state.interactive_prompt_args[3])
   state.restore()
 end)

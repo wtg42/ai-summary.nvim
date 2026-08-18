@@ -73,12 +73,12 @@ read-only: the provider can analyze the code and suggest changes in its answer,
 but the plugin does not allow it to modify repository files. Output streams
 into a floating Markdown window. Press `q` in the output window to close it.
 
-After a successful answer, the plugin closes the summary window and opens an
-interactive Codex session directly. The new terminal receives the repository
-root, selected code, task, and first answer as its initial prompt, then remains
-available for follow-up questions until you exit Codex. This is a handoff to
-Codex rather than a plugin-managed chat session. The interactive session uses
-a workspace-write sandbox with on-request approvals, so you can explicitly ask
+After a successful answer, the plugin offers to open an interactive Codex
+session. The new terminal receives the repository root, selected code, task,
+and first answer as its initial prompt, then remains available for follow-up
+questions until you exit Codex. This is a handoff to Codex rather than a
+plugin-managed chat session. The interactive session uses a workspace-write
+sandbox with on-request approvals, so you can explicitly ask
 Codex to make focused changes and review its actions in the terminal. Very
 large selected code or answers are shortened in the initial handoff prompt to
 stay within process argument limits. Press `Ctrl-q` to close the terminal
@@ -207,7 +207,7 @@ Built-in `model` and `reasoning_effort` mapping currently supports Codex only.
 Other AI CLIs such as Claude Code, Gemini, opencode, or aider are not mapped by
 the plugin yet because each CLI has different flags and execution rules. Use a
 custom `cmd` for those providers until provider-specific adapters are planned.
-The automatic interactive handoff is available only for the built-in Codex
+The optional interactive handoff is available only for the built-in Codex
 command; providers configured with a raw custom `cmd` do not receive the
 handoff prompt.
 
