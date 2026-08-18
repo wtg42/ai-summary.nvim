@@ -36,44 +36,6 @@ local function filter_completion(values, prefix)
   return matches
 end
 
-local function interactive_prompt(code, summary_context, task, answer)
-  return config.build_interactive_prompt(code, summary_context, task, answer)
-end
-
-local function offer_interactive_session(opts, provider_name, selected_code, summary_context, task, answer)
-  if provider_name ~= "codex" then
-    return
-  end
-
-  local cwd = summary_context.root or summary_context.cwd
-  local prompt = interactive_prompt(selected_code, summary_context, task, answer)
-  local command = config.resolve_interactive_command(opts, cwd, prompt)
-
-  if not command then
-    return
-  end
-
-  vim.ui.select({ "Open Codex interactive session", "Keep summary only" }, {
-    prompt = "Continue with Codex interactive mode?",
-  }, function(choice)
-    if choice ~= "Open Codex interactive session" then
-      return
-    end
-
-    vim.schedule(function()
-      local job_id, error_message = ui.open_terminal(opts.window, command, cwd)
-
-      if not job_id then
-        notify(
-          "Failed to start Codex interactive session"
-            .. (error_message and (": " .. tostring(error_message)) or ""),
-          vim.log.levels.ERROR
-        )
-      end
-    end)
-  end)
-end
-
 local function config_usage()
   return table.concat({
     "Usage:",
@@ -276,26 +238,25 @@ function M.summarize_range(line1, line2)
         on_timeout = function(timeout_ms)
           output:append(("\n\nTimed out after %ds"):format(math.floor(timeout_ms / 1000)))
         end,
-        on_exit = function(exit_code, timed_out)
+        on_exit = function(code, timed_out)
           if timed_out then
             return
           end
 
           local stdout = table.concat(stdout_chunks)
 
-          if exit_code == 0 and stdout:match("%S") then
+          if code == 0 and stdout:match("%S") then
             last_summary = stdout
-            offer_interactive_session(opts, provider_name, code, summary_context, task, stdout)
           end
 
-          if exit_code ~= 0 then
+          if code ~= 0 then
             local stderr = table.concat(stderr_chunks)
 
             if stderr:match("%S") then
               output:append(("\n\nProvider error output:\n\n%s"):format(stderr))
             end
 
-            output:append(("\n\nProcess exited with code %d"):format(exit_code))
+            output:append(("\n\nProcess exited with code %d"):format(code))
           end
         end,
       })
