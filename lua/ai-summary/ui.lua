@@ -29,6 +29,12 @@ function Output:append(text)
   end
 end
 
+function Output:close()
+  if vim.api.nvim_win_is_valid(self.winid) then
+    vim.api.nvim_win_close(self.winid, true)
+  end
+end
+
 function M.open(options)
   options = options or {}
 
@@ -56,16 +62,16 @@ function M.open(options)
   vim.wo[winid].wrap = true
   vim.wo[winid].cursorline = false
 
-  vim.keymap.set("n", "q", function()
-    if vim.api.nvim_win_is_valid(winid) then
-      vim.api.nvim_win_close(winid, true)
-    end
-  end, { buffer = bufnr, silent = true, desc = "Close summary" })
-
-  return setmetatable({
+  local output = setmetatable({
     bufnr = bufnr,
     winid = winid,
   }, Output)
+
+  vim.keymap.set("n", "q", function()
+    output:close()
+  end, { buffer = bufnr, silent = true, desc = "Close summary" })
+
+  return output
 end
 
 function M.open_terminal(options, cmd, cwd, on_exit)

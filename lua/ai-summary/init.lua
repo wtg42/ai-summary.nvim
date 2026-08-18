@@ -40,7 +40,7 @@ local function interactive_prompt(code, summary_context, task, answer)
   return config.build_interactive_prompt(code, summary_context, task, answer)
 end
 
-local function offer_interactive_session(opts, provider_name, selected_code, summary_context, task, answer)
+local function start_interactive_session(opts, provider_name, selected_code, summary_context, task, answer, output)
   if provider_name ~= "codex" then
     return
   end
@@ -53,24 +53,17 @@ local function offer_interactive_session(opts, provider_name, selected_code, sum
     return
   end
 
-  vim.ui.select({ "Open Codex interactive session", "Keep summary only" }, {
-    prompt = "Continue with Codex interactive mode?",
-  }, function(choice)
-    if choice ~= "Open Codex interactive session" then
-      return
+  vim.schedule(function()
+    output:close()
+    local job_id, error_message = ui.open_terminal(opts.window, command, cwd)
+
+    if not job_id then
+      notify(
+        "Failed to start Codex interactive session"
+          .. (error_message and (": " .. tostring(error_message)) or ""),
+        vim.log.levels.ERROR
+      )
     end
-
-    vim.schedule(function()
-      local job_id, error_message = ui.open_terminal(opts.window, command, cwd)
-
-      if not job_id then
-        notify(
-          "Failed to start Codex interactive session"
-            .. (error_message and (": " .. tostring(error_message)) or ""),
-          vim.log.levels.ERROR
-        )
-      end
-    end)
   end)
 end
 
@@ -285,7 +278,7 @@ function M.summarize_range(line1, line2)
 
           if exit_code == 0 and stdout:match("%S") then
             last_summary = stdout
-            offer_interactive_session(opts, provider_name, code, summary_context, task, stdout)
+            start_interactive_session(opts, provider_name, code, summary_context, task, stdout, output)
           end
 
           if exit_code ~= 0 then
