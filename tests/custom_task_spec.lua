@@ -79,6 +79,23 @@ h.test("custom task prompt is normalized, contextual, and read-only", function()
   h.not_contains(prompt, "## Summary")
 end)
 
+h.test("interactive prompt carries the first answer and follow-up boundary", function()
+  package.loaded["ai-summary.config"] = nil
+  local config = require("ai-summary.config")
+  local prompt = config.build_interactive_prompt(
+    "return value",
+    context,
+    "Find possible race conditions",
+    "## Notes\nPotential issue"
+  )
+
+  h.contains(prompt, "interactive Codex session")
+  h.contains(prompt, "Initial user task:\nFind possible race conditions")
+  h.contains(prompt, "The first answer from ai-summary.nvim:\n## Notes\nPotential issue")
+  h.contains(prompt, "Only modify files when the user explicitly asks")
+  h.contains(prompt, "--- Selected Code ---\nreturn value")
+end)
+
 h.test("Codex provider uses the default executable", function()
   package.loaded["ai-summary.config"] = nil
   local config = require("ai-summary.config")
@@ -149,6 +166,96 @@ h.test("custom cmd remains an exact override of the Codex executable", function(
   h.eq(custom_cmd, provider.cmd)
 end)
 
+h.test("Codex interactive command uses a workspace-write session with approvals", function()
+  package.loaded["ai-summary.config"] = nil
+  local config = require("ai-summary.config")
+  config.setup()
+
+  local command = config.resolve_interactive_command(config.options, "/repo", "initial prompt")
+
+  h.eq({
+    "codex",
+    "-C",
+    "/repo",
+    "-m",
+    "gpt-5.6-terra",
+    "-c",
+    'model_reasoning_effort="low"',
+    "-s",
+    "workspace-write",
+    "-a",
+    "on-request",
+    "initial prompt",
+  }, command)
+end)
+
+h.test("interactive prompt bounds large answer and selection context", function()
+  package.loaded["ai-summary.config"] = nil
+  local config = require("ai-summary.config")
+  local prompt = config.build_interactive_prompt(
+    string.rep("code ", 30000),
+    context,
+    "Review this",
+    string.rep("answer ", 30000)
+  )
+
+  h.truthy(#prompt < 128 * 1024)
+  h.contains(prompt, "[Context truncated for interactive startup.]")
+end)
+
+h.test("Codex interactive handoff is unavailable for a raw custom command", function()
+  package.loaded["ai-summary.config"] = nil
+  local config = require("ai-summary.config")
+  config.setup({
+    providers = {
+      codex = {
+        cmd = { "wrapper", "exec", "-" },
+      },
+    },
+  })
+
+  local command = config.resolve_interactive_command(config.options, "/repo", "initial prompt")
+
+  h.eq(nil, command)
+end)
+
+h.test("Codex interactive handoff remains available for an empty custom command", function()
+  package.loaded["ai-summary.config"] = nil
+  local config = require("ai-summary.config")
+  config.setup({
+    providers = {
+      codex = {
+        cmd = {},
+      },
+    },
+  })
+
+  local command = config.resolve_interactive_command(config.options, "/repo", "initial prompt")
+
+  h.eq("codex", command[1])
+end)
+
+h.test("interactive prompt bounds an oversized task", function()
+  package.loaded["ai-summary.config"] = nil
+  local config = require("ai-summary.config")
+  local prompt = config.build_interactive_prompt("return value", context, string.rep("task ", 10000), "answer")
+
+  h.truthy(#prompt < 128 * 1024)
+  h.contains(prompt, "[Context truncated for interactive startup.]")
+end)
+
+h.test("interactive prompt truncation preserves UTF-8 boundaries", function()
+  package.loaded["ai-summary.config"] = nil
+  local config = require("ai-summary.config")
+  local marker = "\n\n[Context truncated for interactive startup.]"
+  local prompt = config.build_interactive_prompt(string.rep("中", 50000), context, "Review this", "answer")
+  local marker_start = prompt:find(marker, 1, true)
+  local byte_before_marker = prompt:byte(marker_start - 1)
+
+  h.truthy(marker_start)
+  h.truthy(byte_before_marker < 0xC2 or byte_before_marker > 0xF4)
+end)
+
 local function load_command(options)
   local selected_code = options.selection
   local state = {
@@ -158,10 +265,12 @@ local function load_command(options)
     notifications = {},
     output_opens = 0,
     provider_resolutions = 0,
+    terminal_opens = 0,
     streams = {},
   }
   local input_callback
   local original_input = vim.ui.input
+  local original_select = vim.ui.select
   local original_notify = vim.notify
 
   package.loaded["ai-summary"] = nil
@@ -186,7 +295,7 @@ local function load_command(options)
     }, options.config_options or {}),
     resolve_provider = function()
       state.provider_resolutions = state.provider_resolutions + 1
-      return { cmd = { "provider" } }, "test"
+      return { cmd = { "provider" } }, "codex"
     end,
     defaults = {
       providers = {
@@ -197,6 +306,14 @@ local function load_command(options)
         },
       },
     },
+    build_interactive_prompt = function(code, prompt_context, task, answer)
+      state.interactive_prompt_args = { code, prompt_context, task, answer }
+      return "interactive prompt"
+    end,
+    resolve_interactive_command = function(_, cwd, prompt)
+      state.interactive_command_args = { cwd, prompt }
+      return { "codex", prompt }, "codex"
+    end,
     reasoning_effort_values = { "minimal", "low", "medium", "high", "xhigh" },
     reasoning_effort_list = function()
       return "minimal, low, medium, high, xhigh"
@@ -235,12 +352,23 @@ local function load_command(options)
       state.output_opens = state.output_opens + 1
       return { append = function() end }
     end,
+    open_terminal = function(_, command, cwd)
+      state.terminal_opens = state.terminal_opens + 1
+      state.terminal_command = command
+      state.terminal_cwd = cwd
+      return 42
+    end,
   }
 
   vim.ui.input = function(input_options, callback)
     state.inputs = state.inputs + 1
     state.input_options = input_options
     input_callback = callback
+  end
+  vim.ui.select = function(select_options, select_options_opts, callback)
+    state.select_options = select_options
+    state.select_options_opts = select_options_opts
+    state.select_callback = callback
   end
   vim.notify = function(message, level)
     table.insert(state.notifications, { message = message, level = level })
@@ -262,7 +390,23 @@ local function load_command(options)
 
   function state.restore()
     vim.ui.input = original_input
+    vim.ui.select = original_select
     vim.notify = original_notify
+  end
+
+  function state.emit_stdout(value)
+    state.streams[#state.streams].on_stdout(value)
+  end
+
+  function state.finish(code)
+    state.streams[#state.streams].on_exit(code, false)
+  end
+
+  function state.choose(value)
+    state.select_callback(value)
+    vim.wait(1000, function()
+      return state.terminal_opens > 0 or value ~= "Open Codex interactive session"
+    end)
   end
 
   function state.set_selection(value)
@@ -331,6 +475,40 @@ h.test("custom submission sends normalized task to the prompt callback", functio
 
   h.eq("Find bugs", state.prompt_args[3])
   h.eq(1, #state.streams)
+  state.restore()
+end)
+
+h.test("successful answer offers Codex interactive handoff", function()
+  local module, state = load_command({ selection = "local value = 1" })
+  module.summarize_range(3, 3)
+  state.submit("Find bugs")
+  state.emit_stdout("first answer")
+  state.finish(0)
+
+  h.eq({ "Open Codex interactive session", "Keep summary only" }, state.select_options)
+  h.contains(state.select_options_opts.prompt, "interactive")
+  h.eq(0, state.terminal_opens)
+
+  state.choose("Open Codex interactive session")
+
+  h.eq(1, state.terminal_opens)
+  h.eq({ "/repo", "interactive prompt" }, state.interactive_command_args)
+  h.eq({ "codex", "interactive prompt" }, state.terminal_command)
+  h.eq("Find bugs", state.interactive_prompt_args[3])
+  h.eq("first answer", state.interactive_prompt_args[4])
+  state.restore()
+end)
+
+h.test("declining interactive handoff leaves the summary flow unchanged", function()
+  local module, state = load_command({ selection = "local value = 1" })
+  module.summarize_range(3, 3)
+  state.submit("")
+  state.emit_stdout("first answer")
+  state.finish(0)
+  state.choose("Keep summary only")
+
+  h.eq(0, state.terminal_opens)
+  h.eq(nil, state.interactive_prompt_args[3])
   state.restore()
 end)
 
