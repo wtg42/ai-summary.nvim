@@ -79,7 +79,7 @@ h.test("custom task prompt is normalized, contextual, and read-only", function()
   h.not_contains(prompt, "## Summary")
 end)
 
-h.test("Codex provider uses the default executable", function()
+h.test("Codex provider allows non-Git directories with a read-only sandbox", function()
   package.loaded["ai-summary.config"] = nil
   local config = require("ai-summary.config")
   config.setup()
@@ -88,7 +88,17 @@ h.test("Codex provider uses the default executable", function()
 
   h.eq("codex", provider.cmd[1])
   h.eq(
-    { "exec", "-m", "gpt-5.6-terra", "-c", 'model_reasoning_effort="low"', "-" },
+    {
+      "exec",
+      "--skip-git-repo-check",
+      "--sandbox",
+      "read-only",
+      "-m",
+      "gpt-5.6-terra",
+      "-c",
+      'model_reasoning_effort="low"',
+      "-",
+    },
     vim.list_slice(provider.cmd, 2)
   )
 end)
@@ -111,6 +121,9 @@ h.test("Codex executable preserves generated model and effort arguments", functi
   h.eq({
     "codex-company",
     "exec",
+    "--skip-git-repo-check",
+    "--sandbox",
+    "read-only",
     "-m",
     "company-model",
     "-c",

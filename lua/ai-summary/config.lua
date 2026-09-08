@@ -145,6 +145,9 @@ local function build_codex_cmd(provider)
   return {
     provider.executable or M.defaults.providers.codex.executable,
     "exec",
+    "--skip-git-repo-check",
+    "--sandbox",
+    "read-only",
     "-m",
     model,
     "-c",

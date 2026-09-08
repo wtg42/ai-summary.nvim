@@ -168,10 +168,11 @@ For the built-in Codex provider, `model` and `reasoning_effort` are passed as
 per-run `codex exec` arguments. The default command is equivalent to:
 
 ```bash
-codex exec -m gpt-5.6-terra -c 'model_reasoning_effort="low"' -
+codex exec --skip-git-repo-check --sandbox read-only -m gpt-5.6-terra -c 'model_reasoning_effort="low"' -
 ```
 
-This does not modify your global Codex CLI settings.
+The built-in command allows summaries outside Git repositories and explicitly
+uses a read-only sandbox. This does not modify your global Codex CLI settings.
 
 Set `providers.codex.executable` to use a Codex-compatible wrapper while keeping
 the generated `exec`, model, and reasoning-effort arguments:
@@ -204,11 +205,12 @@ require("ai-summary").setup({
   provider = "local-codex",
   providers = {
     ["local-codex"] = {
-      cmd = { "/Users/you/bin/codex", "exec", "-" },
+      cmd = { "/Users/you/bin/codex", "exec", "--skip-git-repo-check", "--sandbox", "read-only", "-" },
     },
   },
 })
 ```
 
 When `cmd` is configured, ai-summary.nvim runs it exactly as provided and does
-not automatically append executable, model, or reasoning-effort arguments.
+not automatically append executable, model, reasoning-effort, Git-check, or
+sandbox arguments. Include the appropriate flags in a custom Codex command.
