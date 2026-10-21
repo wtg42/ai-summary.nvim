@@ -93,8 +93,6 @@ h.test("Codex provider allows non-Git directories with a read-only sandbox", fun
       "--skip-git-repo-check",
       "--sandbox",
       "read-only",
-      "-m",
-      "luna",
       "-c",
       'model_reasoning_effort="low"',
       "-",
@@ -186,7 +184,6 @@ local function load_command(options)
       providers = {
         codex = {
           executable = "codex",
-          model = "luna",
           reasoning_effort = "low",
         },
       },
@@ -205,7 +202,6 @@ local function load_command(options)
       providers = {
         codex = {
           executable = "codex",
-          model = "luna",
           reasoning_effort = "low",
         },
       },
@@ -421,7 +417,7 @@ h.test("range command covers task input paths without adding a keymap", function
   state.restore()
 end)
 
-h.test("runtime model settings display Luna and preserve explicit model IDs", function()
+h.test("runtime model settings display the CLI default and preserve explicit model IDs", function()
   package.loaded["ai-summary.config"] = nil
   package.loaded["ai-summary"] = nil
   package.loaded["ai-summary.init"] = nil
@@ -435,7 +431,7 @@ h.test("runtime model settings display Luna and preserve explicit model IDs", fu
 
   module.setup()
   vim.cmd("AISummaryConfig show")
-  h.contains(notifications[1], "Model: luna")
+  h.contains(notifications[1], "Model: Codex CLI default")
 
   vim.cmd("AISummaryConfig model gpt-6-luna")
   h.eq("gpt-6-luna", config.resolve_provider().cmd[7])
@@ -444,12 +440,14 @@ h.test("runtime model settings display Luna and preserve explicit model IDs", fu
 
   vim.cmd("AISummaryConfig model")
   h.eq("gpt-6-luna", config.options.providers.codex.model)
-  h.contains(notifications[4], ":AISummaryConfig model luna")
+  h.contains(notifications[4], ":AISummaryConfig model gpt-6-luna")
 
   config.setup({ providers = { codex = { model = "gpt-6-luna" } } })
   h.eq("gpt-6-luna", config.resolve_provider().cmd[7])
 
   vim.cmd("AISummaryConfig model luna")
   h.eq("luna", config.resolve_provider().cmd[7])
+  config.setup()
+  h.eq(false, vim.tbl_contains(config.resolve_provider().cmd, "-m"))
   vim.notify = original_notify
 end)

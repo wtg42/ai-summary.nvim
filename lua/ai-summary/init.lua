@@ -41,7 +41,7 @@ local function config_usage()
     "Usage:",
     "  :AISummaryConfig show",
     "  :AISummaryConfig executable codex-company",
-    "  :AISummaryConfig model luna",
+    "  :AISummaryConfig model gpt-6-luna",
     "  :AISummaryConfig effort low",
     "  :AISummaryConfig effort medium",
     "",
@@ -76,7 +76,7 @@ local function show_config()
     "Active provider: codex",
     "Executable: "
       .. tostring(provider.executable or config.defaults.providers.codex.executable),
-    "Model: " .. tostring(provider.model or config.defaults.providers.codex.model),
+    "Model: " .. tostring(provider.model or "Codex CLI default"),
     "Reasoning effort: "
       .. tostring(provider.reasoning_effort or config.defaults.providers.codex.reasoning_effort),
   }

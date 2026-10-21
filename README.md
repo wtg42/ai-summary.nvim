@@ -19,7 +19,6 @@ return {
       providers = {
         codex = {
           executable = "codex",
-          model = "luna",
           reasoning_effort = "low",
         },
       },
@@ -104,7 +103,7 @@ Change the Codex executable, model, or reasoning effort for the current Neovim s
 
 ```vim
 :AISummaryConfig executable codex-company
-:AISummaryConfig model luna
+:AISummaryConfig model gpt-6-luna
 :AISummaryConfig effort low
 :AISummaryConfig effort medium
 ```
@@ -132,7 +131,6 @@ require("ai-summary").setup({
   providers = {
     codex = {
       executable = "codex",
-      model = "luna",
       reasoning_effort = "low",
     },
   },
@@ -168,21 +166,25 @@ For the built-in Codex provider, `model` and `reasoning_effort` are passed as
 per-run `codex exec` arguments. The default command is equivalent to:
 
 ```bash
-codex exec --skip-git-repo-check --sandbox read-only -m luna -c 'model_reasoning_effort="low"' -
+codex exec --skip-git-repo-check --sandbox read-only -c 'model_reasoning_effort="low"' -
 ```
 
 The built-in command allows summaries outside Git repositories and explicitly
 uses a read-only sandbox. This does not modify your global Codex CLI settings.
 
-The default model is `luna`, passed to the CLI exactly as written. The plugin
-does not resolve model versions or guarantee that your Codex CLI accepts this
-name or routes it to the latest Luna. Test it with your CLI; if it rejects the
-name, set `providers.codex.model` or use `:AISummaryConfig model <model-id>` to
-specify a supported full model ID. CLI failures appear in the summary window.
+By default, the plugin omits `-m` and lets Codex CLI use its own configured or
+default model. `:AISummaryConfig show` displays `Model: Codex CLI default` in
+this mode; it does not query which model the CLI will actually choose.
 
-An explicit model in your Neovim config overrides the plugin default. To try
-`luna`, remove the old model setting or replace it with `model = "luna"`, reload
-the plugin, and check `:AISummaryConfig show` before running a summary.
+Set `providers.codex.model = "gpt-6-luna"` or run
+`:AISummaryConfig model gpt-6-luna` to pass an explicit model ID with `-m`.
+The plugin passes model names exactly as written and does not resolve versions.
+The model must be supported by your CLI and account.
+
+To follow the CLI default, remove any explicit `model` setting from your Neovim
+config and reload the plugin. Runtime model overrides also disappear on reload.
+If Codex CLI itself specifies an unsupported model, update that CLI setting;
+omitting `-m` does not override it. Reasoning effort still defaults to `low`.
 
 Set `providers.codex.executable` to use a Codex-compatible wrapper while keeping
 the generated `exec`, model, and reasoning-effort arguments:

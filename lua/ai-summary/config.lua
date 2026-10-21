@@ -113,7 +113,6 @@ M.defaults = {
   providers = {
     codex = {
       executable = "codex",
-      model = "luna",
       reasoning_effort = "low",
     },
   },
@@ -139,21 +138,29 @@ function M.reasoning_effort_list()
 end
 
 local function build_codex_cmd(provider)
-  local model = provider.model or M.defaults.providers.codex.model
+  local model = provider.model
   local effort = provider.reasoning_effort or M.defaults.providers.codex.reasoning_effort
 
-  return {
+  local cmd = {
     provider.executable or M.defaults.providers.codex.executable,
     "exec",
     "--skip-git-repo-check",
     "--sandbox",
     "read-only",
-    "-m",
-    model,
+  }
+
+  if model then
+    table.insert(cmd, "-m")
+    table.insert(cmd, model)
+  end
+
+  vim.list_extend(cmd, {
     "-c",
     ('model_reasoning_effort="%s"'):format(effort),
     "-",
-  }
+  })
+
+  return cmd
 end
 
 local function normalize_codex_provider(options)
