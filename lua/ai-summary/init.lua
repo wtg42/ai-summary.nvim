@@ -41,7 +41,7 @@ local function config_usage()
     "Usage:",
     "  :AISummaryConfig show",
     "  :AISummaryConfig executable codex-company",
-    "  :AISummaryConfig model gpt-5.6-terra",
+    "  :AISummaryConfig model luna",
     "  :AISummaryConfig effort low",
     "  :AISummaryConfig effort medium",
     "",

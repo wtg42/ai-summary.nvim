@@ -19,7 +19,7 @@ return {
       providers = {
         codex = {
           executable = "codex",
-          model = "gpt-5.6-terra",
+          model = "luna",
           reasoning_effort = "low",
         },
       },
@@ -104,7 +104,7 @@ Change the Codex executable, model, or reasoning effort for the current Neovim s
 
 ```vim
 :AISummaryConfig executable codex-company
-:AISummaryConfig model gpt-5.6-terra
+:AISummaryConfig model luna
 :AISummaryConfig effort low
 :AISummaryConfig effort medium
 ```
@@ -132,7 +132,7 @@ require("ai-summary").setup({
   providers = {
     codex = {
       executable = "codex",
-      model = "gpt-5.6-terra",
+      model = "luna",
       reasoning_effort = "low",
     },
   },
@@ -168,11 +168,21 @@ For the built-in Codex provider, `model` and `reasoning_effort` are passed as
 per-run `codex exec` arguments. The default command is equivalent to:
 
 ```bash
-codex exec --skip-git-repo-check --sandbox read-only -m gpt-5.6-terra -c 'model_reasoning_effort="low"' -
+codex exec --skip-git-repo-check --sandbox read-only -m luna -c 'model_reasoning_effort="low"' -
 ```
 
 The built-in command allows summaries outside Git repositories and explicitly
 uses a read-only sandbox. This does not modify your global Codex CLI settings.
+
+The default model is `luna`, passed to the CLI exactly as written. The plugin
+does not resolve model versions or guarantee that your Codex CLI accepts this
+name or routes it to the latest Luna. Test it with your CLI; if it rejects the
+name, set `providers.codex.model` or use `:AISummaryConfig model <model-id>` to
+specify a supported full model ID. CLI failures appear in the summary window.
+
+An explicit model in your Neovim config overrides the plugin default. To try
+`luna`, remove the old model setting or replace it with `model = "luna"`, reload
+the plugin, and check `:AISummaryConfig show` before running a summary.
 
 Set `providers.codex.executable` to use a Codex-compatible wrapper while keeping
 the generated `exec`, model, and reasoning-effort arguments:

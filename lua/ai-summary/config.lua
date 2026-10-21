@@ -113,7 +113,7 @@ M.defaults = {
   providers = {
     codex = {
       executable = "codex",
-      model = "gpt-5.6-terra",
+      model = "luna",
       reasoning_effort = "low",
     },
   },

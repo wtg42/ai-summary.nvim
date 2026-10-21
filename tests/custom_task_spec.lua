@@ -94,7 +94,7 @@ h.test("Codex provider allows non-Git directories with a read-only sandbox", fun
       "--sandbox",
       "read-only",
       "-m",
-      "gpt-5.6-terra",
+      "luna",
       "-c",
       'model_reasoning_effort="low"',
       "-",
@@ -186,7 +186,7 @@ local function load_command(options)
       providers = {
         codex = {
           executable = "codex",
-          model = "gpt-5.6-terra",
+          model = "luna",
           reasoning_effort = "low",
         },
       },
@@ -205,7 +205,7 @@ local function load_command(options)
       providers = {
         codex = {
           executable = "codex",
-          model = "gpt-5.6-terra",
+          model = "luna",
           reasoning_effort = "low",
         },
       },
@@ -419,4 +419,37 @@ h.test("range command covers task input paths without adding a keymap", function
   h.truthy(vim.tbl_contains(completions, "executable"))
 
   state.restore()
+end)
+
+h.test("runtime model settings display Luna and preserve explicit model IDs", function()
+  package.loaded["ai-summary.config"] = nil
+  package.loaded["ai-summary"] = nil
+  package.loaded["ai-summary.init"] = nil
+  local config = require("ai-summary.config")
+  local module = require("ai-summary")
+  local notifications = {}
+  local original_notify = vim.notify
+  vim.notify = function(message)
+    table.insert(notifications, message)
+  end
+
+  module.setup()
+  vim.cmd("AISummaryConfig show")
+  h.contains(notifications[1], "Model: luna")
+
+  vim.cmd("AISummaryConfig model gpt-6-luna")
+  h.eq("gpt-6-luna", config.resolve_provider().cmd[7])
+  vim.cmd("AISummaryConfig show")
+  h.contains(notifications[3], "Model: gpt-6-luna")
+
+  vim.cmd("AISummaryConfig model")
+  h.eq("gpt-6-luna", config.options.providers.codex.model)
+  h.contains(notifications[4], ":AISummaryConfig model luna")
+
+  config.setup({ providers = { codex = { model = "gpt-6-luna" } } })
+  h.eq("gpt-6-luna", config.resolve_provider().cmd[7])
+
+  vim.cmd("AISummaryConfig model luna")
+  h.eq("luna", config.resolve_provider().cmd[7])
+  vim.notify = original_notify
 end)
